@@ -94,7 +94,33 @@ class PipelineOrchestrator:
             if not video_result or not video_result.get('success'):
                 raise Exception("Video generation failed")
             
-            # Step 5: Prepare final result (skip YouTube upload for now)
+            # Step 5: Upload to YouTube (if configured)
+            logger.info("Attempting YouTube upload...")
+            youtube_video_id = None
+            youtube_url = None
+            
+            try:
+                from src.services.youtube_service import YouTubeService
+                youtube_service = YouTubeService()
+                
+                upload_result = youtube_service.upload_video(
+                    video_path=video_result.get('video_path'),
+                    title=video_title,
+                    description=video_description,
+                    tags=['geopolitics', 'news', 'analysis', 'no-spin-news']
+                )
+                
+                if upload_result and upload_result.get('success'):
+                    youtube_video_id = upload_result.get('video_id')
+                    youtube_url = f"https://youtube.com/watch?v={youtube_video_id}"
+                    logger.info(f"Successfully uploaded to YouTube: {youtube_url}")
+                else:
+                    logger.warning("YouTube upload failed, proceeding without upload")
+                    
+            except Exception as youtube_error:
+                logger.warning(f"YouTube upload error: {str(youtube_error)}, proceeding without upload")
+            
+            # Step 6: Prepare final result
             logger.info("Pipeline completed successfully")
             
             complete_result = {
@@ -108,8 +134,8 @@ class PipelineOrchestrator:
                 'duration': video_result.get('duration', 0),
                 'file_size_mb': video_result.get('file_size_mb', 0),
                 'media_count': len(media_assets),
-                'youtube_video_id': f"local_video_{pipeline_id}",  # Placeholder
-                'youtube_url': f"https://youtube.com/watch?v=local_video_{pipeline_id}",  # Placeholder
+                'youtube_video_id': youtube_video_id or f"local_video_{pipeline_id}",
+                'youtube_url': youtube_url or f"file://{video_result.get('video_path')}",
                 'created_at': datetime.now().isoformat()
             }
             
