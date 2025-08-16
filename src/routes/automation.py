@@ -202,7 +202,9 @@ def generate_video_manual():
         
         # Start video generation in background thread
         def generate_video_thread():
-            with current_app.app_context():
+            # Create a new app context for this thread
+            app = current_app._get_current_object()
+            with app.app_context():
                 try:
                     automation_logger.logger.info(f"Starting video generation thread for ID: {video_gen.id}")
                     
@@ -288,11 +290,14 @@ def start_scheduler():
             global scheduler_running
             scheduler_running = True
             
+            # Get the app instance for this thread
+            app = current_app._get_current_object()
+            
             automation_logger.logger.info("Scheduler loop started")
             
             while scheduler_running:
                 try:
-                    with current_app.app_context():
+                    with app.app_context():
                         automation_logger.logger.debug("Scheduler tick - checking for scheduled jobs")
                         
                         # Check for scheduled jobs
