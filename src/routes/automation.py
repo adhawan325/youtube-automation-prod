@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from datetime import datetime, timedelta
 import logging
 import threading
@@ -232,39 +232,43 @@ def scheduler_loop():
     
     logger.info("Scheduler loop started")
     
+    # Get the Flask app instance
+    app = current_app._get_current_object()
+    
     while scheduler_running:
         try:
-            # Check for jobs that need to run
-            now = datetime.utcnow()
-            jobs_to_run = ScheduledJob.query.filter(
-                ScheduledJob.status == 'active',
-                ScheduledJob.next_run_at <= now
-            ).all()
-            
-            for job in jobs_to_run:
-                logger.info(f"Running scheduled job: {job.job_type}")
+            with app.app_context():
+                # Check for jobs that need to run
+                now = datetime.utcnow()
+                jobs_to_run = ScheduledJob.query.filter(
+                    ScheduledJob.status == 'active',
+                    ScheduledJob.next_run_at <= now
+                ).all()
                 
-                # Create video generation record
-                video_gen = VideoGeneration(
-                    status='pending',
-                    created_at=datetime.utcnow()
-                )
-                db.session.add(video_gen)
-                db.session.commit()
-                
-                # Run video generation in separate thread
-                thread = threading.Thread(
-                    target=run_video_generation,
-                    args=(video_gen.id,)
-                )
-                thread.daemon = True
-                thread.start()
-                
-                # Update job schedule
-                job.last_run_at = now
-                job.next_run_at = now + timedelta(hours=job.interval_hours)
-                job.total_runs += 1
-                db.session.commit()
+                for job in jobs_to_run:
+                    logger.info(f"Running scheduled job: {job.job_type}")
+                    
+                    # Create video generation record
+                    video_gen = VideoGeneration(
+                        status='pending',
+                        created_at=datetime.utcnow()
+                    )
+                    db.session.add(video_gen)
+                    db.session.commit()
+                    
+                    # Run video generation in separate thread
+                    thread = threading.Thread(
+                        target=run_video_generation,
+                        args=(video_gen.id, app)
+                    )
+                    thread.daemon = True
+                    thread.start()
+                    
+                    # Update job schedule
+                    job.last_run_at = now
+                    job.next_run_at = now + timedelta(hours=job.interval_hours)
+                    job.total_runs += 1
+                    db.session.commit()
             
             # Sleep for 30 seconds before checking again
             time.sleep(30)
@@ -275,9 +279,10 @@ def scheduler_loop():
     
     logger.info("Scheduler loop stopped")
 
-def run_video_generation(video_id):
+def run_video_generation(video_id, app=None):
     """Run video generation for a specific video ID"""
-    from src.main import app
+    if app is None:
+        from src.main import app
     
     with app.app_context():
         try:
