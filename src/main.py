@@ -42,6 +42,38 @@ with app.app_context():
     automation_logger.logger.info(f"Database: {database_url}")
     automation_logger.logger.info(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
 
+# Media file serving routes
+@app.route('/media/<path:filename>')
+def serve_media(filename):
+    """Serve media files (videos, images) directly"""
+    media_dir = os.path.join(os.path.dirname(__file__), '..', 'media')
+    media_path = os.path.abspath(media_dir)
+    
+    automation_logger.logger.info(f"Media file requested: {filename}")
+    automation_logger.logger.debug(f"Media directory: {media_path}")
+    
+    if not os.path.exists(media_path):
+        automation_logger.logger.error(f"Media directory not found: {media_path}")
+        return "Media directory not found", 404
+    
+    file_path = os.path.join(media_path, filename)
+    if not os.path.exists(file_path):
+        automation_logger.logger.warning(f"Media file not found: {file_path}")
+        return "File not found", 404
+    
+    # Security check - ensure file is within media directory
+    if not os.path.abspath(file_path).startswith(media_path):
+        automation_logger.logger.error(f"Security violation: attempted access outside media directory: {file_path}")
+        return "Access denied", 403
+    
+    automation_logger.logger.info(f"Serving media file: {filename}")
+    return send_from_directory(media_path, filename)
+
+@app.route('/app/media/<path:filename>')
+def serve_app_media(filename):
+    """Serve media files with /app prefix for compatibility"""
+    return serve_media(filename)
+
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
 def serve(path):

@@ -1,10 +1,23 @@
 version: '3.8'
 
 services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./media:/app/media:ro
+      - ./logs:/var/log/nginx
+    depends_on:
+      - youtube-automation
+    restart: unless-stopped
+
   youtube-automation:
     build: .
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     environment:
       - FLASK_ENV=production
       - NEWSAPI_AI_KEY=${NEWSAPI_AI_KEY}
