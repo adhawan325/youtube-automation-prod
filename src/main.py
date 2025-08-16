@@ -3,22 +3,23 @@ import sys
 # DON'T CHANGE THIS !!!
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, current_app
 from flask_cors import CORS
 from src.models.user import db
 from src.models.pipeline import VideoGeneration, ScheduledJob, SystemStatus, ApiUsage
 from src.routes.user import user_bp
 from src.routes.automation import automation_bp
+from src.utils.logger import automation_logger
 import logging
 
-# Set up logging
+# Set up enhanced logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
-app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'asdf#FGSgvasgf$5$WGT')
 
 # Enable CORS for all routes
 CORS(app)
@@ -37,6 +38,9 @@ db.init_app(app)
 
 with app.app_context():
     db.create_all()
+    automation_logger.logger.info("YouTube Automation System started")
+    automation_logger.logger.info(f"Database: {database_url}")
+    automation_logger.logger.info(f"Environment: {os.getenv('FLASK_ENV', 'development')}")
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
@@ -56,4 +60,5 @@ def serve(path):
 
 
 if __name__ == '__main__':
+    automation_logger.logger.info("Starting Flask development server")
     app.run(host='0.0.0.0', port=5000, debug=False)

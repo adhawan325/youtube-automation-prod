@@ -1,9 +1,12 @@
 import openai
 import logging
+import time
+import traceback
 from typing import Dict, List, Optional
 import os
 import re
 from datetime import datetime
+import openai
 
 logger = logging.getLogger(__name__)
 
@@ -11,9 +14,20 @@ class ContentProcessor:
     """Service for processing and summarizing news content"""
     
     def __init__(self):
+        logger.info("🧠 CONTENT PROCESSOR: Initializing OpenAI client")
+        
         # Set up OpenAI client
-        openai.api_key = os.getenv('OPENAI_API_KEY')
-        openai.api_base = os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+        self.api_key = os.getenv('OPENAI_API_KEY')
+        self.api_base = os.getenv('OPENAI_API_BASE', 'https://api.openai.com/v1')
+        
+        if not self.api_key:
+            logger.error("❌ OPENAI API: API key not configured - check OPENAI_API_KEY environment variable")
+        else:
+            logger.info(f"🔑 OPENAI API: Using API key: {self.api_key[:10]}...")
+            logger.info(f"🌐 OPENAI API: Base URL: {self.api_base}")
+        
+        openai.api_key = self.api_key
+        openai.api_base = self.api_base
         
         # Channel-specific settings
         self.channel_style = {
@@ -22,15 +36,22 @@ class ContentProcessor:
             'focus': 'geopolitical implications and context',
             'target_audience': 'informed viewers interested in international relations'
         }
+        
+        logger.info("✅ CONTENT PROCESSOR: Initialization complete")
     
     def summarize_article(self, article: Dict, target_length: str = 'medium') -> Dict:
         """Summarize a single article for video script"""
+        logger.info(f"📝 CONTENT PROCESSOR: Starting article summarization (target: {target_length})")
+        
         try:
             title = article.get('title', '')
             content = article.get('content', '')
             
+            logger.info(f"📰 ARTICLE: Title: '{title[:100]}...'")
+            logger.info(f"📄 ARTICLE: Content length: {len(content)} characters")
+            
             if not content:
-                logger.warning(f"No content available for article: {title}")
+                logger.warning(f"⚠️ ARTICLE: No content available for article: {title}")
                 return None
             
             # Determine target word count based on length
@@ -41,12 +62,20 @@ class ContentProcessor:
             }
             target_words = word_counts.get(target_length, '200-300 words')
             
+            logger.info(f"🎯 SUMMARIZATION: Target length: {target_words}")
+            
             # Create summarization prompt
             prompt = self._create_summarization_prompt(
                 title, content, target_words
             )
             
+            logger.info(f"📋 OPENAI PROMPT: Length: {len(prompt)} characters")
+            logger.debug(f"📋 OPENAI PROMPT: Content: {prompt[:200]}...")
+            
             # Call OpenAI API
+            logger.info("🤖 OPENAI API: Making summarization request...")
+            start_time = time.time()
+            
             response = openai.chat.completions.create(
                 model="gpt-4.1-mini",
                 messages=[

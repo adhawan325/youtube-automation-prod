@@ -1,14 +1,21 @@
-import logging
 from typing import Dict, List, Optional
 import json
+import logging
 from datetime import datetime
 import traceback
+import time
 
 from src.services.news_aggregator import NewsAggregator
 from src.services.content_processor import ContentProcessor
 from src.services.media_service import MediaService
 from src.services.video_generator import VideoGenerator
+from src.utils.logger import automation_logger
 
+# Configure detailed logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 logger = logging.getLogger(__name__)
 
 class PipelineOrchestrator:
