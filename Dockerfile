@@ -17,7 +17,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Create necessary directories
-RUN mkdir -p media/videos media/audio media/images database
+RUN mkdir -p data media/videos media/audio media/images logs && \
+    chmod 777 data media logs media/videos media/audio media/images
 
 # Set environment variables
 ENV FLASK_APP=src/main.py

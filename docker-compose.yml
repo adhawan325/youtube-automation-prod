@@ -12,9 +12,9 @@ services:
       - PEXELS_API_KEY=${PEXELS_API_KEY}
       - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
       - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
+      - DATABASE_URL=${DATABASE_URL}
     volumes:
       - ./media:/app/media
-      - ./database:/app/database
       - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
