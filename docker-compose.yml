@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  youtube-automation:
+    build: .
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - NEWSAPI_AI_KEY=${NEWSAPI_AI_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PEXELS_API_KEY=${PEXELS_API_KEY}
+      - YOUTUBE_CLIENT_ID=${YOUTUBE_CLIENT_ID}
+      - YOUTUBE_CLIENT_SECRET=${YOUTUBE_CLIENT_SECRET}
+    volumes:
+      - ./media:/app/media
+      - ./database:/app/database
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/automation/status"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
