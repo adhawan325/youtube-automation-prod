@@ -10,7 +10,7 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from src.models.pipeline import db, VideoGeneration, ScheduledJob, SystemStatus, ApiUsage
-from src.services.simple_pipeline import PipelineOrchestrator
+from src.services.pipeline_orchestrator import PipelineOrchestrator
 
 automation_bp = Blueprint('automation', __name__)
 logger = logging.getLogger(__name__)
@@ -277,69 +277,72 @@ def scheduler_loop():
 
 def run_video_generation(video_id):
     """Run video generation for a specific video ID"""
-    try:
-        # Get video generation record
-        video_gen = VideoGeneration.query.get(video_id)
-        if not video_gen:
-            logger.error(f"Video generation record not found: {video_id}")
-            return
-        
-        # Update status
-        video_gen.status = 'processing'
-        video_gen.started_at = datetime.utcnow()
-        db.session.commit()
-        
-        # Initialize pipeline orchestrator
-        orchestrator = PipelineOrchestrator()
-        
-        # Run complete pipeline
-        result = orchestrator.run_complete_pipeline()
-        
-        if result and result.get('success'):
-            # Update video record with results
-            video_gen.status = 'completed'
-            video_gen.completed_at = datetime.utcnow()
-            video_gen.title = result.get('title', '')
-            video_gen.description = result.get('description', '')
-            video_gen.script_content = result.get('script', '')
-            video_gen.video_file_path = result.get('video_path', '')
-            video_gen.youtube_video_id = result.get('youtube_video_id', '')
-            video_gen.youtube_url = result.get('youtube_url', '')
-            video_gen.duration_seconds = result.get('duration', 0)
-            video_gen.file_size_mb = result.get('file_size_mb', 0)
-            video_gen.media_assets_count = result.get('media_count', 0)
-            
-            # Update job success count
-            job = ScheduledJob.query.filter_by(job_type='video_generation').first()
-            if job:
-                job.successful_runs += 1
-            
-        else:
-            # Handle failure
-            video_gen.status = 'failed'
-            video_gen.completed_at = datetime.utcnow()
-            video_gen.error_message = result.get('error', 'Unknown error') if result else 'Pipeline failed'
-            
-            # Update job failure count
-            job = ScheduledJob.query.filter_by(job_type='video_generation').first()
-            if job:
-                job.failed_runs += 1
-        
-        db.session.commit()
-        logger.info(f"Video generation completed: {video_id} - Status: {video_gen.status}")
-        
-    except Exception as e:
-        logger.error(f"Error in video generation {video_id}: {str(e)}")
-        
-        # Update video record with error
+    from src.main import app
+    
+    with app.app_context():
         try:
+            # Get video generation record
             video_gen = VideoGeneration.query.get(video_id)
-            if video_gen:
+            if not video_gen:
+                logger.error(f"Video generation record not found: {video_id}")
+                return
+            
+            # Update status
+            video_gen.status = 'processing'
+            video_gen.started_at = datetime.utcnow()
+            db.session.commit()
+            
+            # Initialize pipeline orchestrator
+            orchestrator = PipelineOrchestrator()
+            
+            # Run complete pipeline
+            result = orchestrator.run_complete_pipeline()
+            
+            if result and result.get('success'):
+                # Update video record with results
+                video_gen.status = 'completed'
+                video_gen.completed_at = datetime.utcnow()
+                video_gen.title = result.get('title', '')
+                video_gen.description = result.get('description', '')
+                video_gen.script_content = result.get('script', '')
+                video_gen.video_file_path = result.get('video_path', '')
+                video_gen.youtube_video_id = result.get('youtube_video_id', '')
+                video_gen.youtube_url = result.get('youtube_url', '')
+                video_gen.duration_seconds = result.get('duration', 0)
+                video_gen.file_size_mb = result.get('file_size_mb', 0)
+                video_gen.media_assets_count = result.get('media_count', 0)
+                
+                # Update job success count
+                job = ScheduledJob.query.filter_by(job_type='video_generation').first()
+                if job:
+                    job.successful_runs += 1
+                
+            else:
+                # Handle failure
                 video_gen.status = 'failed'
                 video_gen.completed_at = datetime.utcnow()
-                video_gen.error_message = str(e)
-                video_gen.retry_count += 1
-                db.session.commit()
-        except:
-            pass
+                video_gen.error_message = result.get('error', 'Unknown error') if result else 'Pipeline failed'
+                
+                # Update job failure count
+                job = ScheduledJob.query.filter_by(job_type='video_generation').first()
+                if job:
+                    job.failed_runs += 1
+            
+            db.session.commit()
+            logger.info(f"Video generation completed: {video_id} - Status: {video_gen.status}")
+            
+        except Exception as e:
+            logger.error(f"Error in video generation {video_id}: {str(e)}")
+            
+            # Update video record with error
+            try:
+                video_gen = VideoGeneration.query.get(video_id)
+                if video_gen:
+                    video_gen.status = 'failed'
+                    video_gen.completed_at = datetime.utcnow()
+                    video_gen.error_message = str(e)
+                    video_gen.retry_count += 1
+                    db.session.commit()
+            except Exception as db_error:
+                logger.error(f"Failed to update video record: {str(db_error)}")
 
