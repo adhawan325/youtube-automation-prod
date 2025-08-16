@@ -1,10 +1,10 @@
-import requests
 import json
 import logging
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 import os
 import time
+import requests
 from ..utils.logger import automation_logger
 
 logger = logging.getLogger(__name__)
@@ -444,7 +444,10 @@ class NewsAggregator:
                 'BRICS', 'international relations', 'diplomacy'
             ]
         
-        automation_logger.logger.info(f"Starting news aggregation with {len(keywords)} keyword groups, limit={limit}, days_back={days_back}")
+        # Force recent news only - use shorter time window for fresher content
+        days_back = min(days_back, 2)  # Maximum 2 days back for latest news
+        
+        automation_logger.logger.info(f"Starting news aggregation with {len(keywords)} keyword groups, limit={limit}, days_back={days_back} (forced recent)")
         automation_logger.logger.debug(f"Keywords: {keywords}")
         
         all_articles = []
@@ -463,12 +466,26 @@ class NewsAggregator:
             all_articles.extend(articles_org)
             automation_logger.logger.info(f"NewsAPI.org contributed {len(articles_org)} articles")
         
+        # Filter out articles older than 3 days regardless of API response
+        cutoff_date = datetime.now() - timedelta(days=3)
+        recent_articles = []
+        old_articles_filtered = 0
+        
+        for article in all_articles:
+            if article['published_at'] >= cutoff_date:
+                recent_articles.append(article)
+            else:
+                old_articles_filtered += 1
+                automation_logger.logger.debug(f"Filtered old article: {article['title'][:50]}... (published: {article['published_at'].date()})")
+        
+        automation_logger.logger.info(f"Filtered out {old_articles_filtered} articles older than 3 days")
+        
         # Remove duplicates based on URL
         seen_urls = set()
         unique_articles = []
         duplicates_removed = 0
         
-        for article in all_articles:
+        for article in recent_articles:
             if article['url'] not in seen_urls:
                 seen_urls.add(article['url'])
                 unique_articles.append(article)
@@ -477,15 +494,15 @@ class NewsAggregator:
         
         automation_logger.logger.info(f"Removed {duplicates_removed} duplicate articles")
         
-        # Sort by relevance score and published date
+        # Sort by published date first (newest first), then by relevance score
         unique_articles.sort(
-            key=lambda x: (x['relevance_score'], x['published_at']),
+            key=lambda x: (x['published_at'], x['relevance_score']),
             reverse=True
         )
         
-        # Log top articles
+        # Log top articles with dates
         for i, article in enumerate(unique_articles[:5]):
-            automation_logger.logger.debug(f"Top article {i+1}: score={article['relevance_score']}, title={article['title'][:100]}...")
+            automation_logger.logger.debug(f"Top article {i+1}: published={article['published_at'].strftime('%Y-%m-%d %H:%M')}, score={article['relevance_score']}, title={article['title'][:100]}...")
         
         final_articles = unique_articles[:limit]
         duration = time.time() - start_time
@@ -497,6 +514,7 @@ class NewsAggregator:
                 "total_articles": len(final_articles),
                 "sources_used": ["NewsAPI.ai", "NewsAPI.org"],
                 "duplicates_removed": duplicates_removed,
+                "old_articles_filtered": old_articles_filtered,
                 "keywords": keywords
             },
             duration=duration

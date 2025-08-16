@@ -4,7 +4,7 @@ import threading
 import time
 import os
 import sys
-from flask import Blueprint, jsonify, request, send_file, abort
+from flask import Blueprint, jsonify, request, send_file, abort, current_app
 from werkzeug.utils import secure_filename
 
 # Add src to path for imports
